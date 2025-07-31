@@ -35,12 +35,23 @@ public class KafkaConfig {
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class);
+        
+        // Enhanced consumer properties to match Service-A configuration
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, true);
+        props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, 1000);
+        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 30000);
+        props.put(ConsumerConfig.HEARTBEAT_INTERVAL_MS_CONFIG, 3000);
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 500);
+        props.put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300000);
 
-        // Configure the JsonDeserializer for KafkaMessage
+        // Configure the JsonDeserializer for KafkaMessage with enhanced settings
         JsonDeserializer<KafkaMessage> jsonDeserializer = new JsonDeserializer<>(KafkaMessage.class);
         jsonDeserializer.setRemoveTypeHeaders(false);
         jsonDeserializer.addTrustedPackages("*");
         jsonDeserializer.setUseTypeMapperForKey(true);
+        
+        // Handle headers from Service-A (content-type, timestamp, partition)
+        jsonDeserializer.ignoreTypeHeaders();
 
         // Set the properties for the consumer factory
         return new DefaultKafkaConsumerFactory<>(
@@ -55,6 +66,12 @@ public class KafkaConfig {
         // Create a ConcurrentKafkaListenerContainerFactory for KafkaMessage
         ConcurrentKafkaListenerContainerFactory<String, KafkaMessage> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
+        
+        // Enhanced configuration for Service-A compatibility
+        factory.setConcurrency(3); // Handle multiple partitions from Service-A instances
+        factory.getContainerProperties().setPollTimeout(3000);
+        factory.getContainerProperties().setSyncCommits(true);
+        
         return factory;
     }
 }
