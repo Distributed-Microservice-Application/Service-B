@@ -22,6 +22,13 @@ public class KafkaConsumerService {
 
     @KafkaListener(topics = "${kafka.topic.summation}", groupId = "${spring.kafka.consumer.group-id}")
     public void consumeMessage(KafkaMessage message) {
+        if (message == null) {
+            logger.warn("Received null Kafka message, skipping processing");
+            return;
+        }
+        
+        logger.info("Processing Kafka message - sum: {}", message.getSum());
+        
         try {
             ZonedDateTime now = ZonedDateTime.now();
             ZonedDateTime messageTimestamp = message.getTimestamp();
@@ -37,18 +44,14 @@ public class KafkaConsumerService {
                 metrics.recordQueueLatencyWithQueueName(0, "user-events", "GET", "/api/summation");
             }
             
+            // Process the summation update
             summationService.updateSummationValue(String.valueOf(message.getSum()));
-        } catch (Exception e) {
-            logger.error("Error processing Kafka message: {}", e.getMessage(), e);
+            logger.info("Successfully processed Kafka message with sum: {}", message.getSum());
             
-            try {
-                if (message != null) {
-                    summationService.updateSummationValue(String.valueOf(message.getSum()));
-                    logger.info("Successfully processed sum value {} despite timestamp error", message.getSum());
-                }
-            } catch (Exception ex) {
-                logger.error("Failed to process sum value after timestamp error: {}", ex.getMessage(), ex);
-            }
+        } catch (Exception e) {
+            logger.error("Critical error processing Kafka message with sum {}: {}", message.getSum(), e.getMessage(), e);
+            // Don't retry here - let Kafka handle retries based on configuration
+            throw new RuntimeException("Failed to process Kafka message", e);
         }
     }
 }
